@@ -1,0 +1,25 @@
+# Project Configuration
+project_id = "your-project-id"
+region     = "us-central1"
+environment = "dev"
+
+# Network Configuration
+subnet_cidrs = {
+  frontend = "10.0.1.0/24"
+  backend  = "10.0.2.0/24"
+  database = "10.0.3.0/24"
+}
+
+# Instance Configuration
+zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
+
+# Database Configuration
+db_tier = "db-f1-micro"
+read_replica_count = 0
+
+# KMS Configuration
+kms_key_ring = "dev-secrets-ring"
+kms_key_name = "dev-secret-key"
+
+# Monitoring Configuration
+alert_email = "your-email@example.com" 
