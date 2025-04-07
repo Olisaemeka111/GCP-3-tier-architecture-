@@ -2,6 +2,80 @@
 
 This repository contains Terraform configurations for deploying a scalable three-tier application infrastructure on Google Cloud Platform.
 
+## Architecture Diagram
+
+```
+                                    +------------------+
+                                    |   Cloud Armor    |
+                                    |  Security Policy |
+                                    +------------------+
+                                           |
+                                           |
+                                    +------------------+
+                                    |   Cloud Load     |
+                                    |    Balancer      |
+                                    +------------------+
+                                           |
+                                           |
+                    +----------------------+----------------------+
+                    |                      |                     |
+           +----------------+    +----------------+    +----------------+
+           |  Web Tier      |    |  App Tier      |    |  Database Tier |
+           |  (Instance     |    |  (Instance     |    |  (Cloud SQL    |
+           |   Group)       |    |   Group)       |    |   Instance)    |
+           +----------------+    +----------------+    +----------------+
+                    |                      |                     |
+                    |                      |                     |
+           +----------------+    +----------------+    +----------------+
+           |  VPC Network   |    |  VPC Network   |    |  VPC Network   |
+           |  (Web Subnet)  |    |  (App Subnet)  |    |  (DB Subnet)   |
+           +----------------+    +----------------+    +----------------+
+                    |                      |                     |
+                    |                      |                     |
+           +----------------+    +----------------+    +----------------+
+           |  Cloud Storage |    |  Cloud KMS     |    |  Monitoring    |
+           |  (Static       |    |  (Encryption   |    |  (Logging &    |
+           |   Content)     |    |   Keys)        |    |   Alerts)      |
+           +----------------+    +----------------+    +----------------+
+                    |                      |                     |
+                    |                      |                     |
+           +----------------+    +----------------+    +----------------+
+           |  IAP Tunnel    |    |  Secret Manager|    |  VPC Service   |
+           |  (SSH Access)  |    |  (Secrets)     |    |  Controls      |
+           +----------------+    +----------------+    +----------------+
+                    |                      |                     |
+                    |                      |                     |
+           +----------------+    +----------------+    +----------------+
+           |  Firewall      |    |  IAM           |    |  Cloud Audit   |
+           |  Rules         |    |  Policies      |    |  Logs          |
+           +----------------+    +----------------+    +----------------+
+```
+
+## Directory Structure
+
+```
+.
+├── .github/
+│   └── workflows/
+│       └── terraform.yml          # GitHub Actions workflow for Terraform
+├── terraform/
+│   ├── main.tf                    # Main Terraform configuration
+│   ├── variables.tf               # Input variables
+│   ├── outputs.tf                 # Output values
+│   ├── providers.tf               # Provider configurations
+│   ├── network.tf                 # VPC and networking resources
+│   ├── compute.tf                 # Compute resources (instances, groups)
+│   ├── database.tf                # Cloud SQL configuration
+│   ├── storage.tf                 # Cloud Storage configuration
+│   ├── kms.tf                     # KMS key configuration
+│   ├── monitoring.tf              # Monitoring and alerting setup
+│   ├── apis.tf                    # GCP API enablement
+│   ├── backend.tf                 # Remote state configuration
+│   └── terraform.tfvars.example   # Example variables file
+├── .gitignore                     # Git ignore rules
+└── README.md                      # Project documentation
+```
+
 ## Prerequisites
 
 - Google Cloud Platform account with billing enabled
@@ -212,4 +286,31 @@ gcloud compute forwarding-rules list
 ### Getting Help
 - Review the GCP documentation for specific services
 - Check Terraform logs using `TF_LOG=DEBUG terraform <command>`
-- Consult the project's issue tracker for known issues and solutions 
+- Consult the project's issue tracker for known issues and solutions
+
+## Security Features
+
+### Network Security
+- **Cloud Armor**: DDoS protection and WAF rules at the edge
+- **VPC Service Controls**: Data exfiltration prevention
+- **Firewall Rules**: Strict network segmentation between tiers
+- **Private Google Access**: Secure access to Google APIs
+- **Cloud Load Balancer**: SSL/TLS termination and DDoS protection
+
+### Identity and Access Management
+- **IAM Policies**: Fine-grained access control
+- **Service Accounts**: Least privilege principle
+- **Cloud IAP**: Secure SSH access to instances
+- **Cloud Audit Logs**: Comprehensive audit trail
+
+### Data Security
+- **Cloud KMS**: Encryption key management
+- **Secret Manager**: Secure secret storage
+- **Cloud SQL**: Encrypted at rest and in transit
+- **Cloud Storage**: Object-level encryption
+
+### Monitoring and Compliance
+- **Cloud Monitoring**: Real-time security metrics
+- **Cloud Logging**: Centralized security logs
+- **Security Command Center**: Threat detection
+- **Compliance Monitoring**: Regulatory compliance checks 
