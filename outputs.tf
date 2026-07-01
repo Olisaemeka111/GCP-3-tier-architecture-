@@ -1,38 +1,63 @@
-# VPC Outputs
+###############################################################################
+# Root outputs
+###############################################################################
+
 output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = google_compute_network.vpc.id
+  description = "The VPC network ID."
+  value       = module.networking.vpc_id
 }
 
 output "subnet_ids" {
-  description = "Map of subnet names to subnet IDs"
-  value       = { for k, v in google_compute_subnetwork.subnets : k => v.id }
+  description = "Map of tier name to subnet ID."
+  value       = module.networking.subnet_ids
 }
 
-# Load Balancer Outputs
 output "frontend_lb_ip" {
-  description = "The IP address of the frontend load balancer"
-  value       = google_compute_global_address.frontend.address
+  description = "The public IP of the frontend load balancer."
+  value       = module.load_balancer.frontend_ip
 }
 
-# Service Account Outputs
+output "backend_internal_ip" {
+  description = "The internal IP of the backend load balancer."
+  value       = module.load_balancer.backend_internal_ip
+}
+
+output "https_enabled" {
+  description = "Whether HTTPS (managed certificate) is provisioned."
+  value       = module.load_balancer.https_enabled
+}
+
 output "frontend_sa_email" {
-  description = "Email address of the frontend service account"
-  value       = google_service_account.frontend_sa.email
+  description = "Frontend service account email."
+  value       = module.security.frontend_sa_email
 }
 
 output "backend_sa_email" {
-  description = "Email address of the backend service account"
-  value       = google_service_account.backend_sa.email
+  description = "Backend service account email."
+  value       = module.security.backend_sa_email
 }
 
-# Instance Group Outputs
-output "frontend_instance_group" {
-  description = "The instance group URL of the frontend instances"
-  value       = google_compute_region_instance_group_manager.frontend.instance_group
+output "cloud_armor_policy_id" {
+  description = "Cloud Armor security policy ID."
+  value       = module.security.security_policy_id
 }
 
-output "backend_instance_group" {
-  description = "The instance group URL of the backend instances"
-  value       = google_compute_region_instance_group_manager.backend.instance_group
-} 
+output "db_instance_connection_name" {
+  description = "Cloud SQL connection name for the Auth Proxy."
+  value       = module.database.instance_connection_name
+}
+
+output "db_private_ip" {
+  description = "Cloud SQL private IP address."
+  value       = module.database.private_ip_address
+}
+
+output "db_password_secret_id" {
+  description = "Secret Manager secret ID holding the DB password (value not exposed)."
+  value       = module.database.password_secret_id
+}
+
+output "audit_log_bucket" {
+  description = "Centralized audit log archive bucket."
+  value       = module.monitoring.log_archive_bucket
+}

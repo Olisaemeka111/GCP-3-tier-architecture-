@@ -1,92 +1,73 @@
-variable "organization_id" {
-  description = "The organization ID where the project will be created"
-  type        = string
-}
-
-variable "billing_account" {
-  description = "The billing account ID to associate with the project"
-  type        = string
-}
-
-variable "project_name" {
-  description = "The display name of the project"
-  type        = string
-}
+###############################################################################
+# Root input variables
+###############################################################################
 
 variable "project_id" {
-  description = "The GCP project ID"
+  description = "The GCP project ID to deploy into."
   type        = string
-}
-
-variable "folder_id" {
-  description = "The folder ID where the project will be created (optional)"
-  type        = string
-  default     = null
 }
 
 variable "region" {
-  description = "The GCP region where resources will be created"
+  description = "Primary GCP region."
   type        = string
   default     = "us-central1"
 }
 
-variable "vpc_name" {
-  description = "Name of the Virtual Private Cloud network"
+variable "zones" {
+  description = "Zones to distribute instances across (must be in var.region)."
+  type        = list(string)
+  default     = ["us-central1-a", "us-central1-b", "us-central1-c"]
+}
+
+variable "environment" {
+  description = "Environment name (dev, staging, prod)."
   type        = string
+  default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be one of: dev, staging, prod."
+  }
+}
+
+# --- Networking ---
+variable "vpc_name" {
+  description = "Name of the VPC network."
+  type        = string
+  default     = "three-tier-vpc"
 }
 
 variable "subnet_cidrs" {
-  description = "CIDR ranges for subnets"
+  description = "Per-tier subnet CIDR ranges."
   type        = map(string)
-  default     = {
+  default = {
     frontend = "10.0.1.0/24"
     backend  = "10.0.2.0/24"
     database = "10.0.3.0/24"
   }
 }
 
-variable "machine_type" {
-  description = "Machine type for compute instances"
-  type        = string
-  default     = "e2-micro"
-}
-
-variable "instance_count" {
-  description = "Number of instances in each tier"
+variable "flow_logs_sampling" {
+  description = "VPC flow-log sampling rate (0.0-1.0)."
   type        = number
-  default     = 2
+  default     = 0.5
 }
 
-variable "db_version" {
-  description = "Database version (e.g., MYSQL_5_7, POSTGRES_13)"
+# --- Compute ---
+variable "frontend_machine_type" {
+  description = "Frontend instance machine type."
   type        = string
+  default     = "e2-medium"
 }
 
-variable "db_tier" {
-  description = "Database machine tier"
+variable "backend_machine_type" {
+  description = "Backend instance machine type."
   type        = string
-  default     = "db-f1-micro"
-}
-
-variable "create_read_replica" {
-  description = "Whether to create a read replica for the database"
-  type        = bool
-  default     = false
-}
-
-variable "alert_email" {
-  description = "Email address for monitoring alerts"
-  type        = string
-}
-
-variable "environment" {
-  description = "The environment (dev, staging, prod)"
-  type        = string
-  default     = "dev"
+  default     = "e2-medium"
 }
 
 variable "frontend_scaling" {
-  description = "Frontend autoscaling configuration"
+  description = "Frontend autoscaling configuration."
   type = object({
     min_replicas           = number
     max_replicas           = number
@@ -102,7 +83,7 @@ variable "frontend_scaling" {
 }
 
 variable "backend_scaling" {
-  description = "Backend autoscaling configuration"
+  description = "Backend autoscaling configuration."
   type = object({
     min_replicas           = number
     max_replicas           = number
@@ -117,37 +98,71 @@ variable "backend_scaling" {
   }
 }
 
-variable "enable_ssl" {
-  description = "Enable SSL/TLS for frontend load balancer"
-  type        = bool
-  default     = false
-}
-
-variable "ssl_certificates" {
-  description = "List of SSL certificate self links for HTTPS load balancer"
+# --- Load balancer / TLS ---
+variable "ssl_domains" {
+  description = "Domains for the Google-managed SSL certificate. Empty => HTTP-only (non-prod)."
   type        = list(string)
   default     = []
 }
 
-variable "zones" {
-  description = "The zones to distribute instances across"
-  type        = list(string)
-  default     = ["us-central1-a", "us-central1-b", "us-central1-c"]
+variable "enable_cdn" {
+  description = "Enable Cloud CDN on the external load balancer."
+  type        = bool
+  default     = true
+}
+
+# --- Database ---
+variable "db_version" {
+  description = "Cloud SQL database version."
+  type        = string
+  default     = "MYSQL_8_0"
+}
+
+variable "db_tier" {
+  description = "Cloud SQL machine tier."
+  type        = string
+  default     = "db-custom-2-7680"
+}
+
+variable "db_availability_type" {
+  description = "Cloud SQL availability (REGIONAL for HA, ZONAL otherwise)."
+  type        = string
+  default     = "REGIONAL"
+}
+
+variable "db_deletion_protection" {
+  description = "Protect the Cloud SQL instance from deletion."
+  type        = bool
+  default     = true
 }
 
 variable "read_replica_count" {
-  description = "Number of read replicas to create for the database"
+  description = "Number of Cloud SQL read replicas."
   type        = number
-  default     = 1
+  default     = 0
 }
 
-# Add reference to the KMS key
-variable "kms_key_ring" {
-  description = "The name of the Cloud KMS key ring"
+# --- Monitoring ---
+variable "alert_email" {
+  description = "Email address for monitoring alerts."
   type        = string
 }
 
-variable "kms_key_name" {
-  description = "The name of the Cloud KMS key"
+variable "log_retention_days" {
+  description = "Retention (days) for the audit log archive bucket."
+  type        = number
+  default     = 365
+}
+
+# --- Security toggles ---
+variable "enable_confidential_vm" {
+  description = "Enable Confidential VMs (requires a compatible machine type such as n2d)."
+  type        = bool
+  default     = false
+}
+
+variable "key_rotation_period" {
+  description = "CMEK rotation period (seconds string)."
   type        = string
+  default     = "7776000s"
 }

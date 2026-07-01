@@ -1,25 +1,33 @@
-# Project Configuration
-project_id = "your-project-id"
-region     = "us-central1"
+# Copy to terraform.tfvars (git-ignored) and fill in real values.
+
+# --- Required ---
+project_id  = "your-project-id"
+alert_email = "your-email@example.com"
+
+# --- Core ---
+region      = "us-central1"
+zones       = ["us-central1-a", "us-central1-b", "us-central1-c"]
 environment = "dev"
 
-# Network Configuration
+# --- Networking ---
+vpc_name = "three-tier-vpc"
 subnet_cidrs = {
   frontend = "10.0.1.0/24"
   backend  = "10.0.2.0/24"
   database = "10.0.3.0/24"
 }
 
-# Instance Configuration
-zones = ["us-central1-a", "us-central1-b", "us-central1-c"]
+# --- TLS / CDN ---
+# Leave ssl_domains empty for an HTTP-only dev LB; set real domains for prod.
+ssl_domains = []
+enable_cdn  = true
 
-# Database Configuration
-db_tier = "db-f1-micro"
-read_replica_count = 0
+# --- Database ---
+db_version             = "MYSQL_8_0"
+db_tier                = "db-custom-2-7680"
+db_availability_type   = "REGIONAL"
+db_deletion_protection = true
+read_replica_count     = 0
 
-# KMS Configuration
-kms_key_ring = "dev-secrets-ring"
-kms_key_name = "dev-secret-key"
-
-# Monitoring Configuration
-alert_email = "your-email@example.com" 
+# --- Security ---
+enable_confidential_vm = false

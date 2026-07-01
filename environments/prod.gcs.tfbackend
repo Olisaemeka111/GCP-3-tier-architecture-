@@ -1,0 +1,2 @@
+bucket = "your-org-terraform-state"
+prefix = "three-tier/prod"
