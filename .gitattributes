@@ -1,0 +1,7 @@
+# Ensure shell scripts and Terraform files always use LF, even on Windows.
+# CRLF in a startup script makes Linux fail with "cannot execute: required
+# file not found" (exit 127).
+*.sh   text eol=lf
+*.tf   text eol=lf
+*.tfvars text eol=lf
+*.bash text eol=lf

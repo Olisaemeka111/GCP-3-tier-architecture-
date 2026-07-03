@@ -34,8 +34,8 @@ output "backend_sa_email" {
 }
 
 output "security_policy_id" {
-  description = "Cloud Armor edge security policy ID (attach to backend services)."
-  value       = google_compute_security_policy.edge.id
+  description = "Cloud Armor edge security policy ID (attach to backend services), or null if disabled."
+  value       = var.enable_cloud_armor ? google_compute_security_policy.edge[0].id : null
 }
 
 output "sql_key_iam_dependency" {
@@ -46,4 +46,9 @@ output "sql_key_iam_dependency" {
 output "secret_key_iam_dependency" {
   description = "Dependency handle ensuring the Secret Manager agent has CMEK access."
   value       = google_kms_crypto_key_iam_member.secret.id
+}
+
+output "storage_key_iam_dependency" {
+  description = "Dependency handle ensuring the GCS agent has CMEK access before bucket creation."
+  value       = google_kms_crypto_key_iam_member.storage.id
 }

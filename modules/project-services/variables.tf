@@ -17,6 +17,7 @@ variable "activate_apis" {
     "iamcredentials.googleapis.com",
     "secretmanager.googleapis.com",
     "cloudkms.googleapis.com",
+    "storage.googleapis.com",
     "cloudasset.googleapis.com",
     "securitycenter.googleapis.com",
     "accesscontextmanager.googleapis.com",

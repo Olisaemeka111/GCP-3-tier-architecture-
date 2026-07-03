@@ -61,3 +61,13 @@ output "audit_log_bucket" {
   description = "Centralized audit log archive bucket."
   value       = module.monitoring.log_archive_bucket
 }
+
+output "game_server_url" {
+  description = "WorkAdventure URL (if the game server is deployed)."
+  value       = var.enable_game_server ? module.game_server[0].url : null
+}
+
+output "game_server_ip" {
+  description = "WorkAdventure public IP (if deployed)."
+  value       = var.enable_game_server ? module.game_server[0].public_ip : null
+}

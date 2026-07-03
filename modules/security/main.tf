@@ -12,13 +12,25 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
+# Triggers creation of (and returns) the Cloud Storage service agent so the
+# CMEK grant below does not race its existence.
+data "google_storage_project_service_account" "gcs" {
+  project = var.project_id
+}
+
 locals {
   name_prefix    = var.environment
   project_number = data.google_project.project.number
 
   compute_agent = "serviceAccount:service-${local.project_number}@compute-system.iam.gserviceaccount.com"
-  sql_agent     = "serviceAccount:service-${local.project_number}@gcp-sa-cloud-sql.iam.gserviceaccount.com"
-  storage_agent = "serviceAccount:service-${local.project_number}@gs-project-accounts.iam.gserviceaccount.com"
+  storage_agent = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+
+  waf_rules = [
+    { priority = 1000, desc = "Block SQL injection", expr = "evaluatePreconfiguredWaf('sqli-v33-stable', {'sensitivity': ${var.waf_sensitivity}})" },
+    { priority = 1001, desc = "Block cross-site scripting", expr = "evaluatePreconfiguredWaf('xss-v33-stable', {'sensitivity': ${var.waf_sensitivity}})" },
+    { priority = 1002, desc = "Block local/remote file inclusion", expr = "evaluatePreconfiguredWaf('lfi-v33-stable', {'sensitivity': ${var.waf_sensitivity}}) || evaluatePreconfiguredWaf('rfi-v33-stable', {'sensitivity': ${var.waf_sensitivity}})" },
+    { priority = 1003, desc = "Block remote code execution", expr = "evaluatePreconfiguredWaf('rce-v33-stable', {'sensitivity': ${var.waf_sensitivity}})" },
+  ]
 }
 
 ###############################################################################
@@ -154,13 +166,18 @@ resource "google_project_iam_member" "backend_roles" {
 ###############################################################################
 
 resource "google_compute_security_policy" "edge" {
+  count       = var.enable_cloud_armor ? 1 : 0
   project     = var.project_id
   name        = "${local.name_prefix}-edge-security-policy"
   description = "Edge security policy: OWASP WAF, rate limiting, adaptive DDoS."
 
+  # Advanced features (OWASP WAF, rate limiting, adaptive L7 DDoS) require Cloud
+  # Armor Managed Protection Plus / advanced-rule quota. Toggle off for projects
+  # without it (e.g. dev) to deploy a basic policy.
+
   # Adaptive Protection (ML-based L7 DDoS detection).
   dynamic "adaptive_protection_config" {
-    for_each = var.enable_adaptive_protection ? [1] : []
+    for_each = (var.enable_cloud_armor_advanced && var.enable_adaptive_protection) ? [1] : []
     content {
       layer_7_ddos_defense_config {
         enable = true
@@ -169,70 +186,43 @@ resource "google_compute_security_policy" "edge" {
   }
 
   # Preconfigured OWASP Core Rule Set WAF signatures.
-  rule {
-    action      = "deny(403)"
-    priority    = 1000
-    description = "Block SQL injection"
-    match {
-      expr {
-        expression = "evaluatePreconfiguredWaf('sqli-v33-stable', {'sensitivity': ${var.waf_sensitivity}})"
-      }
-    }
-  }
-
-  rule {
-    action      = "deny(403)"
-    priority    = 1001
-    description = "Block cross-site scripting"
-    match {
-      expr {
-        expression = "evaluatePreconfiguredWaf('xss-v33-stable', {'sensitivity': ${var.waf_sensitivity}})"
-      }
-    }
-  }
-
-  rule {
-    action      = "deny(403)"
-    priority    = 1002
-    description = "Block local/remote file inclusion"
-    match {
-      expr {
-        expression = "evaluatePreconfiguredWaf('lfi-v33-stable', {'sensitivity': ${var.waf_sensitivity}}) || evaluatePreconfiguredWaf('rfi-v33-stable', {'sensitivity': ${var.waf_sensitivity}})"
-      }
-    }
-  }
-
-  rule {
-    action      = "deny(403)"
-    priority    = 1003
-    description = "Block remote code execution"
-    match {
-      expr {
-        expression = "evaluatePreconfiguredWaf('rce-v33-stable', {'sensitivity': ${var.waf_sensitivity}})"
+  dynamic "rule" {
+    for_each = var.enable_cloud_armor_advanced ? local.waf_rules : []
+    content {
+      action      = "deny(403)"
+      priority    = rule.value.priority
+      description = rule.value.desc
+      match {
+        expr {
+          expression = rule.value.expr
+        }
       }
     }
   }
 
   # Per-client rate limiting (throttle abusive sources).
-  rule {
-    action      = "rate_based_ban"
-    priority    = 2000
-    description = "Rate limit per client IP"
-    match {
-      versioned_expr = "SRC_IPS_V1"
-      config {
-        src_ip_ranges = ["*"]
+  dynamic "rule" {
+    for_each = var.enable_cloud_armor_advanced ? [1] : []
+    content {
+      action      = "rate_based_ban"
+      priority    = 2000
+      description = "Rate limit per client IP"
+      match {
+        versioned_expr = "SRC_IPS_V1"
+        config {
+          src_ip_ranges = ["*"]
+        }
       }
-    }
-    rate_limit_options {
-      conform_action = "allow"
-      exceed_action  = "deny(429)"
-      enforce_on_key = "IP"
-      rate_limit_threshold {
-        count        = var.armor_rate_limit_threshold
-        interval_sec = var.armor_rate_limit_interval_sec
+      rate_limit_options {
+        conform_action = "allow"
+        exceed_action  = "deny(429)"
+        enforce_on_key = "IP"
+        rate_limit_threshold {
+          count        = var.armor_rate_limit_threshold
+          interval_sec = var.armor_rate_limit_interval_sec
+        }
+        ban_duration_sec = 600
       }
-      ban_duration_sec = 600
     }
   }
 

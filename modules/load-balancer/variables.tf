@@ -25,8 +25,9 @@ variable "frontend_health_check_id" {
 }
 
 variable "security_policy_id" {
-  description = "Cloud Armor security policy to attach to the external backend service."
+  description = "Cloud Armor security policy to attach to the external backend service (null to skip)."
   type        = string
+  default     = null
 }
 
 variable "enable_cdn" {

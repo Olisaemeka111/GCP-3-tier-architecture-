@@ -119,7 +119,7 @@ resource "google_compute_region_instance_group_manager" "this" {
 
   auto_healing_policies {
     health_check      = google_compute_health_check.this.id
-    initial_delay_sec = 300
+    initial_delay_sec = var.health_check_initial_delay_sec
   }
 
   update_policy {

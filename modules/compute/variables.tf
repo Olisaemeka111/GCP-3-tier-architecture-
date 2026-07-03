@@ -97,6 +97,12 @@ variable "health_check_request_path" {
   default     = "/"
 }
 
+variable "health_check_initial_delay_sec" {
+  description = "Grace period before auto-healing acts on an unhealthy instance (allow slow first-boot provisioning)."
+  type        = number
+  default     = 300
+}
+
 variable "autoscaling" {
   description = "Autoscaling configuration."
   type = object({

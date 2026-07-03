@@ -65,6 +65,18 @@ variable "enable_adaptive_protection" {
   default     = true
 }
 
+variable "enable_cloud_armor" {
+  description = "Create the Cloud Armor security policy. Requires SECURITY_POLICIES quota (0 by default on new projects). Set false to skip it entirely."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloud_armor_advanced" {
+  description = "Enable Cloud Armor advanced rules (OWASP WAF, rate limiting, adaptive DDoS). Requires Managed Protection Plus / advanced-rule quota. Set false for projects without it."
+  type        = bool
+  default     = true
+}
+
 variable "waf_sensitivity" {
   description = "OWASP CRS preconfigured WAF sensitivity level (1-4)."
   type        = number

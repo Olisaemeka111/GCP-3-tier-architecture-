@@ -40,11 +40,13 @@ module "networking" {
 module "security" {
   source = "./modules/security"
 
-  project_id          = var.project_id
-  region              = var.region
-  environment         = var.environment
-  key_rotation_period = var.key_rotation_period
-  depends_on_id       = module.project_services.apis_ready_id
+  project_id                  = var.project_id
+  region                      = var.region
+  environment                 = var.environment
+  key_rotation_period         = var.key_rotation_period
+  enable_cloud_armor          = var.enable_cloud_armor
+  enable_cloud_armor_advanced = var.enable_cloud_armor_advanced
+  depends_on_id               = module.project_services.apis_ready_id
 
   depends_on = [module.project_services]
 }
@@ -64,7 +66,7 @@ module "frontend" {
   subnetwork             = module.networking.subnet_self_links["frontend"]
   service_account_email  = module.security.frontend_sa_email
   network_tags           = ["frontend"]
-  startup_script         = file("${path.module}/scripts/frontend-startup.sh")
+  startup_script         = replace(file("${path.module}/scripts/frontend-startup.sh"), "\r\n", "\n")
   named_ports            = local.frontend_named_ports
   health_check_port      = 80
   autoscaling            = var.frontend_scaling
@@ -75,22 +77,26 @@ module "frontend" {
 module "backend" {
   source = "./modules/compute"
 
-  project_id             = var.project_id
-  region                 = var.region
-  zones                  = var.zones
-  environment            = var.environment
-  tier_name              = "backend"
-  machine_type           = var.backend_machine_type
-  disk_kms_key_id        = module.security.disk_key_id
-  network                = module.networking.vpc_self_link
-  subnetwork             = module.networking.subnet_self_links["backend"]
-  service_account_email  = module.security.backend_sa_email
-  network_tags           = ["backend"]
-  startup_script         = file("${path.module}/scripts/backend-startup.sh")
-  named_ports            = local.backend_named_ports
-  health_check_port      = 8080
-  autoscaling            = var.backend_scaling
-  enable_confidential_vm = var.enable_confidential_vm
+  project_id            = var.project_id
+  region                = var.region
+  zones                 = var.zones
+  environment           = var.environment
+  tier_name             = "backend"
+  machine_type          = var.backend_machine_type
+  disk_kms_key_id       = module.security.disk_key_id
+  network               = module.networking.vpc_self_link
+  subnetwork            = module.networking.subnet_self_links["backend"]
+  service_account_email = module.security.backend_sa_email
+  network_tags          = ["backend"]
+  startup_script        = replace(file("${path.module}/scripts/backend-startup.sh"), "\r\n", "\n")
+  named_ports           = local.backend_named_ports
+  health_check_port     = 8080
+  # Jenkins serves 8080 but returns 403 on "/"; "/login" returns 200. Give the
+  # first boot extra grace while Docker + Jenkins install over Cloud NAT.
+  health_check_request_path      = "/login"
+  health_check_initial_delay_sec = 600
+  autoscaling                    = var.backend_scaling
+  enable_confidential_vm         = var.enable_confidential_vm
 }
 
 # 6. Load balancers (external HTTPS for frontend + internal for backend).
@@ -133,6 +139,25 @@ module "database" {
   sql_key_iam_dependency    = module.security.sql_key_iam_dependency
 }
 
+# 8b. Dedicated game server (WorkAdventure) — optional.
+module "game_server" {
+  source = "./modules/game-server"
+  count  = var.enable_game_server ? 1 : 0
+
+  project_id            = var.project_id
+  region                = var.region
+  zone                  = var.zones[0]
+  environment           = var.environment
+  network               = module.networking.vpc_self_link
+  subnetwork            = module.networking.subnet_self_links["frontend"]
+  machine_type          = var.game_server_machine_type
+  disk_kms_key_id       = module.security.disk_key_id
+  acme_email            = var.alert_email
+  workadventure_version = var.workadventure_version
+  startup_script        = replace(file("${path.module}/scripts/game-server-startup.sh"), "\r\n", "\n")
+  additional_web_ports  = var.game_server_extra_ports
+}
+
 # 8. Monitoring, alerting and centralized audit logging.
 module "monitoring" {
   source = "./modules/monitoring"
@@ -144,5 +169,6 @@ module "monitoring" {
   log_storage_kms_key_id = module.security.storage_key_id
   log_retention_days     = var.log_retention_days
 
-  depends_on = [module.project_services]
+  # module.security ensures the GCS CMEK grant exists before the log bucket.
+  depends_on = [module.project_services, module.security]
 }

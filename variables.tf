@@ -161,8 +161,44 @@ variable "enable_confidential_vm" {
   default     = false
 }
 
+variable "enable_game_server" {
+  description = "Deploy a dedicated WorkAdventure game server VM (public IP)."
+  type        = bool
+  default     = false
+}
+
+variable "game_server_machine_type" {
+  description = "Machine type for the WorkAdventure game server."
+  type        = string
+  default     = "e2-standard-2"
+}
+
+variable "workadventure_version" {
+  description = "WorkAdventure image tag to deploy on the game server."
+  type        = string
+  default     = "master"
+}
+
+variable "game_server_extra_ports" {
+  description = "Extra TCP ports to open on the game server (e.g. a second app under test)."
+  type        = list(string)
+  default     = []
+}
+
 variable "key_rotation_period" {
   description = "CMEK rotation period (seconds string)."
   type        = string
   default     = "7776000s"
+}
+
+variable "enable_cloud_armor" {
+  description = "Create the Cloud Armor security policy. Requires SECURITY_POLICIES quota (0 by default on new projects). Set false to skip it entirely."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloud_armor_advanced" {
+  description = "Enable Cloud Armor advanced rules (OWASP WAF, rate limiting, adaptive DDoS). Requires Managed Protection Plus / advanced-rule quota. Set false for projects without it (e.g. dev)."
+  type        = bool
+  default     = true
 }
