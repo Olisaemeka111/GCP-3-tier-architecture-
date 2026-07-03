@@ -371,6 +371,100 @@ class ArchitectureDiagram(Flowable):
 
 
 # ---------------------------------------------------------------------------
+# Game-hosting schematic (reuses ArchitectureDiagram primitives)
+# ---------------------------------------------------------------------------
+class GameServerDiagram(ArchitectureDiagram):
+    """Schematic of the dedicated game-server VM and the two app stacks."""
+
+    def __init__(self, width=17 * cm, height=10.4 * cm):
+        Flowable.__init__(self)
+        self.width = width
+        self.height = height
+
+    def draw(self):
+        c = self.canv
+        k = cm
+        purple = colors.HexColor("#a142f4")
+        cm_green = colors.HexColor("#188038")
+
+        # Internet + downward flow into the firewall.
+        self._cloud(c, 5.4 * k, 9.6 * k, "Internet / Users")
+
+        # Firewall band.
+        self._box(c, 0.6 * k, 8.15 * k, 10.8 * k, 0.62 * k,
+                  "Firewall  —  allow 80 · 443 · 8080 (internet)   |   22 (IAP only)",
+                  None, fill=GCP_YELLOW, tcol=INK, fs=7.4)
+
+        # VM container.
+        vx, vy, vw, vh = 0.6 * k, 0.7 * k, 10.8 * k, 6.9 * k
+        c.saveState()
+        c.setStrokeColor(GCP_DARK)
+        c.setDash(4, 3)
+        c.setLineWidth(1.2)
+        c.setFillColor(colors.HexColor("#f7faff"))
+        c.roundRect(vx, vy, vw, vh, 7, fill=1, stroke=1)
+        c.setDash()
+        c.setFillColor(GCP_DARK)
+        c.setFont("Helvetica-Bold", 7.6)
+        c.drawString(vx + 7, vy + vh - 12,
+                     "dev-game-server VM  ·  e2-standard-2  ·  public IP  ·  Shielded  ·  CMEK disk")
+        c.restoreState()
+
+        # WorkAdventure stack.
+        self._box(c, 1.1 * k, 1.3 * k, 4.7 * k, 5.0 * k, "WorkAdventure",
+                  ["Traefik  :80 / :443", "→ Let's Encrypt via sslip.io",
+                   "play · back · map-storage", "uploader · icon · redis",
+                   "(Docker Compose)"],
+                  fill=GCP_BLUE, fs=9.5, sfs=6.8)
+
+        # Cloud-Morph stack.
+        self._box(c, 6.2 * k, 1.3 * k, 4.6 * k, 5.0 * k, "Cloud-Morph",
+                  ["Go server  :8080  (WebRTC)", "nat1to1ip = public IP",
+                   "Wine 'appvm' container", "streaming Minesweeper",
+                   "(Docker + Wine)"],
+                  fill=cm_green, fs=9.5, sfs=6.8)
+
+        # Right column: operators, IAP, host/security notes.
+        self._box(c, 11.9 * k, 8.15 * k, 4.5 * k, 0.62 * k,
+                  "Operators / Admins", None, fill=INK, fs=8)
+        self._box(c, 11.9 * k, 6.75 * k, 4.5 * k, 0.92 * k,
+                  "Identity-Aware Proxy", ["SSH :22 (no public SSH)"],
+                  fill=purple, fs=8, sfs=6.2)
+
+        nx, ny, nw, nh = 11.9 * k, 1.3 * k, 4.5 * k, 5.0 * k
+        c.saveState()
+        c.setStrokeColor(GREY_LINE)
+        c.setFillColor(colors.white)
+        c.roundRect(nx, ny, nw, nh, 5, fill=1, stroke=1)
+        c.setFillColor(INK)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(nx + 7, ny + nh - 13, "Infra extensions")
+        notes = [
+            "• new game-server module",
+            "• static external IP",
+            "• firewall 80/443 + IAP SSH",
+            "• additional_web_ports=[8080]",
+            "• CMEK boot disk (disk key)",
+            "• OS Login, Shielded VM",
+            "• sslip.io → real TLS cert",
+            "• outside the MIG tiers",
+        ]
+        c.setFont("Helvetica", 6.9)
+        for i, n in enumerate(notes):
+            c.drawString(nx + 8, ny + nh - 30 - i * 12, n)
+        c.restoreState()
+
+        # Flows.
+        self._flow(c, [(5.4 * k, 9.0 * k), (5.4 * k, 8.79 * k)], GCP_BLUE)
+        self._flow(c, [(3.9 * k, 8.15 * k), (3.4 * k, 6.3 * k)], GCP_BLUE)
+        self._label(c, 2.4 * k, 6.75 * k, "HTTPS", GCP_BLUE)
+        self._flow(c, [(7.6 * k, 8.15 * k), (8.5 * k, 6.3 * k)], cm_green)
+        self._label(c, 9.3 * k, 6.75 * k, ":8080", cm_green)
+        self._flow(c, [(14.15 * k, 8.15 * k), (14.15 * k, 7.67 * k)], GCP_RED, dash=(3, 2))
+        self._flow(c, [(11.9 * k, 7.1 * k), (10.8 * k, 5.2 * k)], GCP_RED, dash=(3, 2))
+
+
+# ---------------------------------------------------------------------------
 # Reusable table helper
 # ---------------------------------------------------------------------------
 def make_table(header, rows, col_widths, head_color=GCP_DARK, zebra=True):
@@ -483,8 +577,9 @@ def build():
         "10. Deployment Guide",
         "11. Operations, HA &amp; Disaster Recovery",
         "12. Risk Register &amp; Roadmap",
-        "13. Application Workloads Deployed",
-        "14. Deployment Notes &amp; Operational Lessons",
+        "13. Game Hosting — Infrastructure Extensions",
+        "14. Deployed Game Platforms (WorkAdventure &amp; Cloud-Morph)",
+        "15. Deployment Notes &amp; Operational Lessons",
     ]
     for t in toc:
         e.append(P(t, "TOCItem"))
@@ -875,43 +970,131 @@ def build():
     ))
     e.append(PageBreak())
 
-    # ---- 13. Application Workloads Deployed ----
-    e.append(P("13. Application Workloads Deployed", "H1"))
+    # ---- 13. Game Hosting — Infrastructure Extensions ----
+    e.append(P("13. Game Hosting — Infrastructure Extensions", "H1"))
     e.append(P(
-        "The infrastructure was deployed to a live GCP project and validated end-to-end "
-        "by running real workloads across every tier. This demonstrates the platform can "
-        "host both stateless, autoscaled services and stateful, single-host container "
-        "applications within the same project and VPC."))
+        "The platform was deployed to a live GCP project and validated end-to-end by "
+        "running real workloads across every tier (Table 13.1), including two interactive "
+        "game platforms. Rather than repurpose the autoscaled tiers, the infrastructure "
+        "was extended with a dedicated, single-host game server in the same project and "
+        "VPC — keeping the hardened tiers stateless and untouched."))
+    e.append(P("Table 13.1 — Deployed workloads", "H3"))
     e.append(make_table(
         ["Host / Tier", "Workload", "Access", "Status"],
         [
-            ["Frontend MIG", "nginx static site", "Global HTTPS load balancer (public IP)", "Live — HTTP 200"],
+            ["Frontend MIG", "nginx static site", "Global HTTPS LB (public IP)", "Live — 200"],
             ["Backend MIG", "Jenkins CI + Docker Engine", "Internal LB :8080, IAP SSH", "Healthy"],
-            ["Game server VM", "WorkAdventure (Docker Compose: Traefik, play, back, map-storage, uploader, icon, redis)", "https://&lt;ip&gt;.sslip.io (LetsEncrypt)", "Live — 7/7 containers"],
-            ["Game server VM", "Cloud-Morph (Go server + Wine container)", "http://&lt;ip&gt;:8080", "Live — streaming Minesweeper"],
-            ["Database", "Cloud SQL MySQL 8.0 (private, CMEK)", "Backend tier only, private IP", "RUNNABLE"],
+            ["Game server VM", "WorkAdventure (7-container stack)", "https://&lt;ip&gt;.sslip.io", "Live — 7/7"],
+            ["Game server VM", "Cloud-Morph (Go + Wine)", "http://&lt;ip&gt;:8080", "Live"],
+            ["Database", "Cloud SQL MySQL 8.0 (private, CMEK)", "Backend tier only", "RUNNABLE"],
         ],
-        [2.8 * cm, 6.2 * cm, 4.5 * cm, 2.5 * cm],
+        [2.8 * cm, 5.8 * cm, 4.6 * cm, 2.8 * cm],
         head_color=GCP_GREEN,
     ))
     e.append(Spacer(1, 0.2 * cm))
-    e.append(P("Dedicated game server (single-host workloads)", "H3"))
+    e.append(P("Why a dedicated VM instead of the MIG tiers", "H3"))
     e.append(bullets([
-        "Provisioned by the <font face='Courier'>game-server</font> module: a single "
-        "Shielded VM with a static public IP, CMEK boot disk and IAP-only SSH — "
-        "deliberately outside the autoscaled MIG tiers because these apps are stateful "
-        "and must run on one host.",
-        "<b>No domain required:</b> the deploy uses <font face='Courier'>&lt;ip&gt;.sslip.io</font>, "
-        "a real wildcard-DNS name resolving to the VM's IP, so Traefik obtains a valid "
-        "Let's Encrypt certificate and WebRTC works without purchasing a domain.",
-        "<b>Two apps coexist</b> on the VM: WorkAdventure on 80/443 (Traefik) and "
-        "Cloud-Morph on 8080 — the latter opened via the module's "
-        "<font face='Courier'>additional_web_ports</font> variable.",
+        "Both games are <b>stateful, single-host</b> stacks (Traefik sessions, Redis, a "
+        "Wine container). An autoscaled, round-robin MIG would split state across "
+        "replicas and wipe it on every roll/auto-heal.",
+        "They require a <b>stable public IP and inbound 80/443/8080</b>; the MIG tiers "
+        "have no public IP and are reachable only through load balancers.",
+        "Isolation preserves the production tiers' posture (no public IP, IAP-only SSH).",
+    ]))
+    e.append(Spacer(1, 0.25 * cm))
+    e.append(P("Figure 13.1 — Game server architecture", "H3"))
+    e.append(GameServerDiagram())
+    e.append(PageBreak())
+
+    e.append(P("Terraform changes made to accommodate the games", "H2"))
+    e.append(P(
+        "All additions are gated behind <font face='Courier'>enable_game_server</font> "
+        "(off by default) so the core three-tier platform is unaffected when games are "
+        "not deployed."))
+    e.append(make_table(
+        ["Change", "What it does / why"],
+        [
+            ["New game-server module", "Dedicated Compute Engine VM (Shielded, CMEK disk, OS Login) that runs Docker Compose apps; kept separate from the compute/MIG module."],
+            ["Static external IP", "google_compute_address — stable public address needed for DNS (sslip.io) and Let's Encrypt HTTP-01 validation."],
+            ["Web firewall rule (80, 443)", "Allows public HTTP/HTTPS to the VM (tag game-server); WorkAdventure's Traefik terminates TLS."],
+            ["additional_web_ports variable", "Opens extra ports (8080 for Cloud-Morph) without editing the module — set via game_server_extra_ports."],
+            ["IAP SSH firewall rule", "Admin SSH to the VM via IAP range (35.235.240.0/20) only; no public SSH."],
+            ["enable_game_server toggle", "count-based optional deployment; the games add nothing when disabled."],
+            ["storage + IAP APIs enabled", "storage.googleapis.com (audit-bucket agent) and iap.googleapis.com (SSH tunnel) added to project-services."],
+            ["CMEK disk reuse", "The VM's boot disk uses the security module's disk key, consistent with tier hardening."],
+        ],
+        [4.3 * cm, 11.7 * cm],
+        head_color=GCP_BLUE,
+    ))
+    e.append(PageBreak())
+
+    # ---- 14. Deployed Game Platforms ----
+    e.append(P("14. Deployed Game Platforms", "H1"))
+
+    e.append(P("14.1  WorkAdventure", "H2"))
+    e.append(P(
+        "WorkAdventure is a web-based virtual world (a 2D metaverse) with "
+        "proximity audio/video over WebRTC. It was deployed as a multi-container stack via "
+        "Docker Compose using prebuilt images, fronted by Traefik with automatic TLS."))
+    e.append(make_table(
+        ["Container", "Role"],
+        [
+            ["reverse-proxy (Traefik)", "Ingress on 80/443, path-based routing, Let's Encrypt (HTTP-01) TLS termination"],
+            ["play", "Serves the game client (HTML/JS/WASM); WebSocket entry point for players"],
+            ["back", "Shares room/world state between connected users"],
+            ["map-storage", "Serves and edits maps (protected by basic authentication)"],
+            ["uploader", "Stores chat file uploads (Redis-backed)"],
+            ["icon", "Fetches favicons for websites embedded in iframes"],
+            ["redis", "Scripting-API variables and uploader storage"],
+        ],
+        [3.6 * cm, 12.4 * cm],
+        head_color=GCP_GREEN,
+    ))
+    e.append(P("Deploy flow", "H3"))
+    e.append(bullets([
+        "The startup script installs Docker, derives the domain as "
+        "<font face='Courier'>&lt;ip&gt;.sslip.io</font> from the instance's external IP, "
+        "writes an <font face='Courier'>.env</font> (DOMAIN, random SECRET_KEY, ACME_EMAIL, "
+        "map-storage basic-auth) and runs <font face='Courier'>docker compose up -d</font>.",
+        "Traefik obtains a Let's Encrypt certificate for the sslip.io name via the HTTP-01 "
+        "challenge on port 80 — hence the need for a real DNS name and open 80.",
+        "Outcome: <font face='Courier'>https://&lt;ip&gt;.sslip.io</font> serves the world "
+        "over valid TLS (verified), so WebRTC audio/video functions.",
     ]))
     e.append(PageBreak())
 
-    # ---- 14. Deployment Notes & Operational Lessons ----
-    e.append(P("14. Deployment Notes &amp; Operational Lessons", "H1"))
+    e.append(P("14.2  Cloud-Morph", "H2"))
+    e.append(P(
+        "Cloud-Morph streams a Windows desktop application to the browser over WebRTC. A "
+        "Go server handles signaling and streaming while the application itself runs under "
+        "Wine inside a Docker container. Minesweeper (bundled with the repo) is the "
+        "smoke-test application."))
+    e.append(make_table(
+        ["Component", "Role"],
+        [
+            ["Go server (:8080)", "HTTP + WebRTC signaling; captures the app's video/audio, streams it, relays input"],
+            ["syncwine image", "Docker image with Wine + Xvfb + ffmpeg + the input bridge (syncinput.exe)"],
+            ["appvm container", "Runs the Windows app (Minesweeper) under Wine, headless on Xvfb display :99"],
+            ["nat1to1ip", "WebRTC 1:1 NAT hint set to the VM's public IP so ICE candidates are reachable"],
+        ],
+        [3.6 * cm, 12.4 * cm],
+        head_color=GCP_GREEN,
+    ))
+    e.append(P("Deploy flow", "H3"))
+    e.append(bullets([
+        "The repo requires <b>Go 1.24+</b>; the official Go toolchain is installed (Debian's "
+        "1.19 is too old) and the server is compiled with <font face='Courier'>go build</font>.",
+        "The <font face='Courier'>syncwine</font> Wine image is built once; the Go server "
+        "launches the <font face='Courier'>appvm</font> container and serves the client on "
+        "<font face='Courier'>:8080</font> (opened via additional_web_ports).",
+        "Outcome: <font face='Courier'>http://&lt;ip&gt;:8080</font> streams Minesweeper "
+        "(verified). In this smoke test Cloud-Morph is HTTP-only; for production it would "
+        "also sit behind Traefik/TLS.",
+    ]))
+    e.append(PageBreak())
+
+    # ---- 15. Deployment Notes & Operational Lessons ----
+    e.append(P("15. Deployment Notes &amp; Operational Lessons", "H1"))
     e.append(P(
         "Deploying to a real (fresh, quota-limited) project surfaced several issues that "
         "were resolved and folded back into the modules. They are recorded here for "
