@@ -443,12 +443,12 @@ def build():
     e.append(Spacer(1, 1.2 * cm))
 
     meta = Table([
-        ["Document", "Project Design & Compliance Reference"],
-        ["Version", "2.0 (Modular, Production-Grade)"],
+        ["Document", "Project Design, Compliance & Deployment Reference"],
+        ["Version", "3.0 (Modular, Hardened, Deployed & Validated)"],
         ["Platform", "Google Cloud Platform"],
-        ["IaC", "Terraform (modular)"],
+        ["IaC", "Terraform (8 modules)"],
+        ["Status", "Deployed to GCP; smoke-tested with live workloads"],
         ["Classification", "Confidential — Internal Use"],
-        ["Status", "Baseline for Production"],
     ], colWidths=[4 * cm, 9 * cm])
     meta.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
@@ -483,6 +483,8 @@ def build():
         "10. Deployment Guide",
         "11. Operations, HA &amp; Disaster Recovery",
         "12. Risk Register &amp; Roadmap",
+        "13. Application Workloads Deployed",
+        "14. Deployment Notes &amp; Operational Lessons",
     ]
     for t in toc:
         e.append(P(t, "TOCItem"))
@@ -517,6 +519,9 @@ def build():
         "limiting and adaptive (ML) layer-7 DDoS defense.",
         "<b>Provable compliance:</b> controls mapped to CIS GCP, ISO 27001, SOC 2 and "
         "PCI-DSS (Section 9).",
+        "<b>Deployed &amp; validated:</b> provisioned to a live GCP project and smoke-tested "
+        "with real workloads — nginx, Jenkins-in-Docker, and two containerised game "
+        "platforms on a dedicated VM (Sections 13–14).",
     ]))
     e.append(P("Notable fixes applied during hardening", "H3"))
     e.append(bullets([
@@ -568,6 +573,8 @@ def build():
              "Private IP, CMEK, SSL-only, PITR, deletion protection, hardened flags"],
             ["monitoring", "Alerts, notification channel, audit archive",
              "Audit log sink to CMEK bucket, DATA_READ/WRITE audit logging"],
+            ["game-server", "Dedicated single-host VM for stateful container workloads",
+             "Shielded VM, CMEK disk, IAP-only SSH, static IP, scoped web ports"],
         ],
         [3 * cm, 6 * cm, 8 * cm],
     ))
@@ -866,8 +873,78 @@ def build():
         [3 * cm, 11 * cm, 2 * cm],
         head_color=GCP_DARK,
     ))
+    e.append(PageBreak())
+
+    # ---- 13. Application Workloads Deployed ----
+    e.append(P("13. Application Workloads Deployed", "H1"))
+    e.append(P(
+        "The infrastructure was deployed to a live GCP project and validated end-to-end "
+        "by running real workloads across every tier. This demonstrates the platform can "
+        "host both stateless, autoscaled services and stateful, single-host container "
+        "applications within the same project and VPC."))
+    e.append(make_table(
+        ["Host / Tier", "Workload", "Access", "Status"],
+        [
+            ["Frontend MIG", "nginx static site", "Global HTTPS load balancer (public IP)", "Live — HTTP 200"],
+            ["Backend MIG", "Jenkins CI + Docker Engine", "Internal LB :8080, IAP SSH", "Healthy"],
+            ["Game server VM", "WorkAdventure (Docker Compose: Traefik, play, back, map-storage, uploader, icon, redis)", "https://&lt;ip&gt;.sslip.io (LetsEncrypt)", "Live — 7/7 containers"],
+            ["Game server VM", "Cloud-Morph (Go server + Wine container)", "http://&lt;ip&gt;:8080", "Live — streaming Minesweeper"],
+            ["Database", "Cloud SQL MySQL 8.0 (private, CMEK)", "Backend tier only, private IP", "RUNNABLE"],
+        ],
+        [2.8 * cm, 6.2 * cm, 4.5 * cm, 2.5 * cm],
+        head_color=GCP_GREEN,
+    ))
+    e.append(Spacer(1, 0.2 * cm))
+    e.append(P("Dedicated game server (single-host workloads)", "H3"))
+    e.append(bullets([
+        "Provisioned by the <font face='Courier'>game-server</font> module: a single "
+        "Shielded VM with a static public IP, CMEK boot disk and IAP-only SSH — "
+        "deliberately outside the autoscaled MIG tiers because these apps are stateful "
+        "and must run on one host.",
+        "<b>No domain required:</b> the deploy uses <font face='Courier'>&lt;ip&gt;.sslip.io</font>, "
+        "a real wildcard-DNS name resolving to the VM's IP, so Traefik obtains a valid "
+        "Let's Encrypt certificate and WebRTC works without purchasing a domain.",
+        "<b>Two apps coexist</b> on the VM: WorkAdventure on 80/443 (Traefik) and "
+        "Cloud-Morph on 8080 — the latter opened via the module's "
+        "<font face='Courier'>additional_web_ports</font> variable.",
+    ]))
+    e.append(PageBreak())
+
+    # ---- 14. Deployment Notes & Operational Lessons ----
+    e.append(P("14. Deployment Notes &amp; Operational Lessons", "H1"))
+    e.append(P(
+        "Deploying to a real (fresh, quota-limited) project surfaced several issues that "
+        "were resolved and folded back into the modules. They are recorded here for "
+        "operability and to inform future environments."))
+    e.append(make_table(
+        ["Symptom", "Root cause", "Resolution"],
+        [
+            ["Instances could not fetch packages", "No public IP and no NAT", "Added Cloud NAT + Cloud Router for controlled egress"],
+            ["Startup scripts failed (exit 127)", "CRLF line endings authored on Windows", "Strip CR via replace(); .gitattributes enforces LF"],
+            ["Cloud Armor apply failed", "New project SECURITY_POLICIES quota = 0", "Cloud Armor made optional (enable_cloud_armor); request quota to enable"],
+            ["Autoscaler apply failed", "Regional INSTANCES quota = 8", "Right-sized dev autoscaling; request quota to scale"],
+            ["GCS CMEK grant failed", "Storage service agent not yet created", "Use google_storage_project_service_account data source + ordering"],
+            ["Jenkins never started", "apt repo unsigned; package unavailable", "Run Jenkins as a Docker container (jenkins/jenkins:lts-jdk17)"],
+            ["Backend tier auto-heal looped", "Health check hit / (403) while Jenkins serves 8080", "Health path /login + longer initial delay"],
+            ["Cloud-Morph build failed", "Debian Go 1.19 shadowed required Go 1.24 on PATH", "Prepend official Go; purge apt Go; GOTOOLCHAIN=local"],
+        ],
+        [4 * cm, 5.5 * cm, 6.5 * cm],
+        head_color=GCP_RED,
+    ))
+    e.append(Spacer(1, 0.2 * cm))
+    e.append(P("Operational access model", "H3"))
+    e.append(bullets([
+        "<b>Terraform auth:</b> the provider authenticates with a short-lived token from "
+        "the operator's gcloud session (<font face='Courier'>GOOGLE_OAUTH_ACCESS_TOKEN</font>), "
+        "avoiding long-lived service-account keys.",
+        "<b>Instance access:</b> all SSH is via Identity-Aware Proxy TCP forwarding "
+        "(no public SSH). An <font face='Courier'>~/.ssh/config</font> ProxyCommand entry "
+        "enables <font face='Courier'>ssh &lt;instance&gt;</font> and VS Code Remote-SSH.",
+        "<b>Immutability:</b> MIG instances are ephemeral — durable changes are made to "
+        "the Terraform templates and rolled, never by mutating live VMs.",
+    ]))
     e.append(Spacer(1, 0.4 * cm))
-    e.append(P("Document generated for the modular, hardened Terraform baseline. "
+    e.append(P("Document generated for the modular, hardened, deployed Terraform baseline. "
                "Regenerate with <font face='Courier'>python docs/generate_pdf.py</font> "
                "after infrastructure changes.", "Small"))
 

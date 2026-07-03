@@ -66,8 +66,10 @@ Cloud Monitoring alerts.
 │   ├── compute/                # Generic hardened tier (Shielded VM MIG)
 │   ├── load-balancer/          # External HTTPS LB + internal LB
 │   ├── database/               # Hardened Cloud SQL + Secret Manager
-│   └── monitoring/             # Alerts, audit log sink, data-access logs
+│   ├── monitoring/             # Alerts, audit log sink, data-access logs
+│   └── game-server/            # Dedicated VM for single-host container apps
 ├── scripts/                    # Instance startup scripts
+├── .gitattributes              # Force LF on *.sh/*.tf (CRLF breaks startups)
 └── docs/                       # Documentation sources + generated PDF
 ```
 
@@ -82,6 +84,22 @@ Cloud Monitoring alerts.
 | `load-balancer` | External global HTTPS LB + internal LB | Managed TLS (MODERN policy, TLS 1.2+), HTTP→HTTPS redirect, Armor attach |
 | `database` | Cloud SQL primary + replicas + password secret | Private IP, CMEK, SSL-only, PITR, deletion protection, hardened flags |
 | `monitoring` | Alert policy, notification channel, audit archive | Audit log sink to CMEK bucket, DATA_READ/WRITE audit logs |
+| `game-server` | Dedicated single-host VM for stateful container workloads | Shielded VM, CMEK disk, IAP-only SSH, static IP, scoped web ports |
+
+## Validated with live workloads
+
+Deployed to a real GCP project and smoke-tested end-to-end:
+
+- **Frontend MIG** — nginx behind the global HTTPS load balancer
+- **Backend MIG** — Jenkins CI (in Docker) + Docker Engine, behind the internal LB
+- **Game server VM** — [WorkAdventure](https://github.com/workadventure/workadventure)
+  (Docker Compose, HTTPS via `<ip>.sslip.io` + LetsEncrypt) **and**
+  [Cloud-Morph](https://github.com/giongto35/cloud-morph) (Go + Wine) on `:8080`
+- **Cloud SQL** — private, CMEK-encrypted MySQL 8.0
+
+See sections 13–14 of [`docs/Project-Documentation.pdf`](docs/Project-Documentation.pdf)
+for the workload matrix and the deployment lessons (quotas, CRLF, Jenkins-in-Docker,
+Go toolchain, sslip.io TLS, IAP SSH).
 
 ## Prerequisites
 
