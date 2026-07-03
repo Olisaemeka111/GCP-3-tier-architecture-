@@ -5,3 +5,8 @@
 *.tf   text eol=lf
 *.tfvars text eol=lf
 *.bash text eol=lf
+
+# Never apply EOL conversion to binaries.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
